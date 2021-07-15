@@ -21,7 +21,7 @@ import (
 )
 
 //SaveLocalBlockHead 记录区块高度和hash到本地
-func (bs *CSPRBlockScanner) SaveLocalBlockHead(blockHeight uint64, blockHash string) error {
+func (bs *MCFBlockScanner) SaveLocalBlockHead(blockHeight uint64, blockHash string) error {
 
 	if bs.BlockchainDAI == nil {
 		return fmt.Errorf("Blockchain DAI is not setup ")
@@ -38,7 +38,7 @@ func (bs *CSPRBlockScanner) SaveLocalBlockHead(blockHeight uint64, blockHash str
 }
 
 //GetLocalBlockHead 获取本地记录的区块高度和hash
-func (bs *CSPRBlockScanner) GetLocalBlockHead() (uint64, string, error) {
+func (bs *MCFBlockScanner) GetLocalBlockHead() (uint64, string, error) {
 
 	if bs.BlockchainDAI == nil {
 		return 0, "", fmt.Errorf("Blockchain DAI is not setup ")
@@ -53,7 +53,7 @@ func (bs *CSPRBlockScanner) GetLocalBlockHead() (uint64, string, error) {
 }
 
 //SaveLocalBlock 记录本地新区块
-func (bs *CSPRBlockScanner) SaveLocalBlock(blockHeader *Block) error {
+func (bs *MCFBlockScanner) SaveLocalBlock(blockHeader *Block) error {
 
 	if bs.BlockchainDAI == nil {
 		return fmt.Errorf("Blockchain DAI is not setup ")
@@ -73,7 +73,7 @@ func (bs *CSPRBlockScanner) SaveLocalBlock(blockHeader *Block) error {
 }
 
 //GetLocalBlock 获取本地区块数据
-func (bs *CSPRBlockScanner) GetLocalBlock(height uint64) (*Block, error) {
+func (bs *MCFBlockScanner) GetLocalBlock(height uint64) (*Block, error) {
 
 	if bs.BlockchainDAI == nil {
 		return nil, fmt.Errorf("Blockchain DAI is not setup ")
@@ -94,7 +94,7 @@ func (bs *CSPRBlockScanner) GetLocalBlock(height uint64) (*Block, error) {
 }
 
 //SaveUnscanRecord 保存交易记录到钱包数据库
-func (bs *CSPRBlockScanner) SaveUnscanRecord(record *openwallet.UnscanRecord) error {
+func (bs *MCFBlockScanner) SaveUnscanRecord(record *openwallet.UnscanRecord) error {
 
 	if bs.BlockchainDAI == nil {
 		return fmt.Errorf("Blockchain DAI is not setup ")
@@ -104,7 +104,7 @@ func (bs *CSPRBlockScanner) SaveUnscanRecord(record *openwallet.UnscanRecord) er
 }
 
 //DeleteUnscanRecord 删除指定高度的未扫记录
-func (bs *CSPRBlockScanner) DeleteUnscanRecord(height uint64) error {
+func (bs *MCFBlockScanner) DeleteUnscanRecord(height uint64) error {
 
 	if bs.BlockchainDAI == nil {
 		return fmt.Errorf("Blockchain DAI is not setup ")
@@ -113,7 +113,7 @@ func (bs *CSPRBlockScanner) DeleteUnscanRecord(height uint64) error {
 	return bs.BlockchainDAI.DeleteUnscanRecordByHeight(height, bs.wm.Symbol())
 }
 
-func (bs *CSPRBlockScanner) GetUnscanRecords() ([]*openwallet.UnscanRecord, error) {
+func (bs *MCFBlockScanner) GetUnscanRecords() ([]*openwallet.UnscanRecord, error) {
 
 	if bs.BlockchainDAI == nil {
 		return nil, fmt.Errorf("Blockchain DAI is not setup ")

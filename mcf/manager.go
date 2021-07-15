@@ -35,7 +35,7 @@ type WalletManager struct {
 	ApiClient       *ApiClient
 	Config          *WalletConfig                 //钱包管理配置
 	WalletsInSum    map[string]*openwallet.Wallet //参与汇总的钱包
-	Blockscanner    *CSPRBlockScanner             //区块扫描器
+	Blockscanner    *MCFBlockScanner              //区块扫描器
 	Decoder         openwallet.AddressDecoderV2   //地址编码器
 	TxDecoder       openwallet.TransactionDecoder //交易单编码器
 	Log             *log.OWLogger                 //日志工具

@@ -13,7 +13,7 @@ import (
 
 const (
 	testNodeAPIHttp = "http://3.208.91.63:8888"
-	testNodeAPIRpc  = "http://3.208.91.63:7777/rpc"
+	testNodeAPIRpc  = "http://1.wallet.info"
 )
 
 func PrintJsonLog(t *testing.T, logCont string) {
@@ -36,16 +36,16 @@ func TestGetCall(t *testing.T) {
 	}
 }
 
-func Test_getBlockHeight(t *testing.T) {
+func Test_getAddrBalance(t *testing.T) {
 
 	c := NewClient(testNodeAPIHttp, true)
 
-	r, err := c.getLastBlockHeight()
+	r, err := c.getBalance("QYqmSCw73QYAvCmkZCfpCm55XDk8W18fWW")
 
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Println("height:", r)
+		fmt.Println("balance:", r)
 	}
 
 }
@@ -84,9 +84,8 @@ func Test_getBlockRpc(t *testing.T) {
 func Test_getBalance(t *testing.T) {
 
 	c := NewClient(testNodeAPIRpc, true)
-	address := "01664adcf74db3887accb10af5dccb8e3c2a6b6d33f900ffa69cb42b356aa2ca52"
-	stateRootHash := ""
-	r, err := c.getBalance(address, stateRootHash)
+	address := "QYqmSCw73QYAvCmkZCfpCm55XDk8W18fWW"
+	r, err := c.getBalance(address)
 
 	if err != nil {
 		fmt.Println(err)
@@ -97,15 +96,15 @@ func Test_getBalance(t *testing.T) {
 }
 
 func Test_sendTransaction(t *testing.T) {
-	c := NewClient(testNodeAPIRpc, true)
-	r, err := c.sendTransaction("0x39028453538d40098561df3a2fe577c2995d7f6a5bd45f0f5708e9b9e11cc4896e1db800ba6d5" +
-		"4c43a5c07e6d1b89ff51d356ac686b0bcd592d00a5140c4842a054c567830aad78e0bd03c86792e794756a516507b1911f824267d51b75" +
-		"b3676d0a9b40295030000050009d0dbc83629dcd90f7e1cc989cd2cd713205adff4a3b0f2699e31b7e35981340700dc5c2402")
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(r)
-	}
+	//c := NewClient(testNodeAPIRpc, true)
+	//r, err := c.sendTransaction("0x39028453538d40098561df3a2fe577c2995d7f6a5bd45f0f5708e9b9e11cc4896e1db800ba6d5" +
+	//	"4c43a5c07e6d1b89ff51d356ac686b0bcd592d00a5140c4842a054c567830aad78e0bd03c86792e794756a516507b1911f824267d51b75" +
+	//	"b3676d0a9b40295030000050009d0dbc83629dcd90f7e1cc989cd2cd713205adff4a3b0f2699e31b7e35981340700dc5c2402")
+	//if err != nil {
+	//	fmt.Println(err)
+	//} else {
+	//	fmt.Println(r)
+	//}
 }
 func Test_rpc(t *testing.T) {
 	// test (POST http://3.208.91.63:7777/rpc)

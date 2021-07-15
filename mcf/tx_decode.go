@@ -19,7 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/Assetsadapter/mcf-adapter/caspertransaction"
+	"github.com/Assetsadapter/mcf-adapter/mcftransaction"
 	"github.com/Assetsadapter/mcf-adapter/txsigner"
 	"github.com/blocktree/go-owcrypt"
 	"github.com/mr-tron/base58"
@@ -86,7 +86,7 @@ func (decoder *TransactionDecoder) SignRawTransaction(wrapper openwallet.WalletD
 			if err != nil {
 				return err
 			}
-			deployTx := caspertransaction.Deploy{}
+			deployTx := mcftransaction.Deploy{}
 			if err := json.Unmarshal(rawTxHex, &deployTx); err != nil {
 				return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "sign transaction hash failed, unexpected err: %v", err)
 			}
@@ -138,7 +138,7 @@ func (decoder *TransactionDecoder) SubmitRawTransaction(wrapper openwallet.Walle
 		return nil, openwallet.Errorf(openwallet.ErrSubmitRawSmartContractTransactionFailed, "raw tx Unmarshal failed=%s", err)
 	}
 
-	deployTx := caspertransaction.Deploy{}
+	deployTx := mcftransaction.Deploy{}
 	if err := json.Unmarshal(rawTxHex, &deployTx); err != nil {
 		return nil, openwallet.Errorf(openwallet.ErrSubmitRawSmartContractTransactionFailed, "submit transaction hash failed, unexpected err: %v", err)
 	}
@@ -193,7 +193,7 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 	addressesBalanceList := make([]AddrBalance, 0, len(addresses))
 
 	for _, addr := range addresses {
-		balance, err := decoder.wm.ApiClient.getBalance(addr.Address, "")
+		balance, err := decoder.wm.ApiClient.getBalance(addr.Address)
 		if err != nil {
 			return err
 		}
@@ -228,7 +228,8 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 
 	from := ""
 	for _, a := range addressesBalanceList {
-		if a.Balance < (amount + fee) {
+		addrBalance := uint64(int64(convertFromAmount(a.Balance, decoder.wm.Decimal())))
+		if addrBalance < (amount + fee) {
 			continue
 		}
 		from = a.Address
@@ -482,14 +483,14 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 	return raTxWithErr, nil
 }
 
-func (decoder *TransactionDecoder) CreateEmptyRawTransactionAndMessage(fromPub string, toPub string, transferAmount, payFeeAmount uint64) (*caspertransaction.Deploy, string, error) {
+func (decoder *TransactionDecoder) CreateEmptyRawTransactionAndMessage(fromPub string, toPub string, transferAmount, payFeeAmount uint64) (*mcftransaction.Deploy, string, error) {
 	//now := time.Now() // current local time
 	//timestamp := uint64(now.Unix())
 	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 	chainName := decoder.wm.Config.ChainName
 	ttlTime := uint64(30 * 60 * 1000)
 
-	deploy, err := caspertransaction.NewDeploy(payFeeAmount, transferAmount, uint64(timestamp), 1, ttlTime, fromPub, toPub, chainName)
+	deploy, err := mcftransaction.NewDeploy(payFeeAmount, transferAmount, uint64(timestamp), 1, ttlTime, fromPub, toPub, chainName)
 	if err != nil {
 		return nil, "", err
 	}

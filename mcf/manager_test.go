@@ -30,7 +30,7 @@ func init() {
 }
 
 func testNewWalletManager() *WalletManager {
-	wm := NewWalletManager(nil)
+	wm := NewWalletManager()
 
 	//读取配置
 	absFile := filepath.Join("conf", "DOT.ini")

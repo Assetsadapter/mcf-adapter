@@ -51,15 +51,13 @@ func (c *ApiClient) getLastBlock() (*Block, error) {
 }
 
 // 获取地址余额
-func (c *ApiClient) getBalance(address, stateRootHash string) (*AddrBalance, error) {
+func (c *ApiClient) getBalance(address string) (*AddrBalance, error) {
 	var (
 		balance *AddrBalance
 		err     error
 	)
 
-	if c.APIChoose == "rpc" {
-		balance, err = c.Client.getBalance(address, stateRootHash)
-	}
+	balance, err = c.Client.getBalance(address)
 
 	return balance, err
 }
@@ -69,9 +67,7 @@ func (c *ApiClient) getBlockByHeight(height uint64) (*Block, error) {
 		block *Block
 		err   error
 	)
-	if c.APIChoose == "rpc" {
-		block, err = c.Client.getBlockByHeight(height)
-	}
+	block, err = c.Client.getBlockByHeight(height)
 
 	return block, err
 	return nil, nil

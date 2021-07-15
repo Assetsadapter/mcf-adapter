@@ -15,8 +15,6 @@
 package mcf
 
 import (
-	"encoding/json"
-	"errors"
 	"github.com/blocktree/openwallet/v2/openwallet"
 	"github.com/tidwall/gjson"
 	"strings"
@@ -54,8 +52,8 @@ type Transaction struct {
 	TimeStamp       uint64
 	FromAccountHash string
 	From            string
-	ToAccountHash   string
-	Amount          uint64
+	To              string
+	Amount          string
 	BlockHeight     uint64
 	BlockHash       string
 	Status          string
@@ -63,18 +61,17 @@ type Transaction struct {
 	ToDecArr        []string //@required 格式："地址":"数量(带小数)"
 }
 
-func GetTransactionInBlock(txJson *gjson.Result, height uint64) []*Transaction {
-	transferArray := txJson.Get("transfers").Array()
-	blockHash := txJson.Get("block_hash").String()
+func GetTransactionInBlock(txJson *gjson.Result, blockHash string) []*Transaction {
+	transferArray := txJson.Array()
 	transactions := make([]*Transaction, 0)
 	for _, transfer := range transferArray {
 		transaction := Transaction{}
 		transaction.BlockHash = blockHash
-		transaction.BlockHeight = height
-		transaction.TxID = transfer.Get("deploy_hash").String()
-		transaction.Amount = transfer.Get("amount").Uint()
-		transaction.FromAccountHash = GetHashFromAccountHash(transfer.Get("from").String())
-		transaction.ToAccountHash = GetHashFromAccountHash(transfer.Get("to").String())
+		transaction.BlockHeight = transfer.Get("blockHeight").Uint()
+		transaction.TxID = transfer.Get("signature").String()
+		transaction.Amount = transfer.Get("amount").String()
+		transaction.From = transfer.Get("creatorAddress").String()
+		transaction.To = transfer.Get("recipient").String()
 		transactions = append(transactions, &transaction)
 	}
 	return transactions
@@ -92,25 +89,11 @@ func GetHashFromAccountHash(accountHash string) string {
 	return dataArray[2]
 }
 
-func NewStatus(data *gjson.Result) (*Status, error) {
-	status := &Status{}
-	lastBlockInfo := data.Get("last_added_block_info")
-	if !lastBlockInfo.Exists() {
-		return nil, errors.New("can not get last status")
-	}
-	if err := json.Unmarshal([]byte(lastBlockInfo.Raw), &status); err != nil {
-		return nil, err
-	}
-	return status, nil
-}
-
 func NewBlock(json *gjson.Result) *Block {
-
 	obj := &Block{}
-	obj.Hash = json.Get("block.hash").String()
-	header := json.Get("block.header")
-	obj.PrevBlockHash = header.Get("parent_hash").String()
-	obj.Height = header.Get("height").Uint()
+	obj.Hash = json.Get("signature").String()
+	obj.PrevBlockHash = json.Get("reference").String()
+	obj.Height = json.Get("height").Uint()
 	return obj
 }
 
@@ -130,7 +113,7 @@ func (b *Block) BlockHeader() *openwallet.BlockHeader {
 
 type AddrBalance struct {
 	Address string
-	Balance uint64
+	Balance string
 }
 
 type TxArtifacts struct {

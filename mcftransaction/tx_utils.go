@@ -1,10 +1,10 @@
-package caspertransaction
+package mcftransaction
 
 import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"strconv"
+	"github.com/shopspring/decimal"
 )
 
 func byteArrayCompare(a, b []byte) bool {
@@ -82,21 +82,43 @@ func littleEndianBytesToUint64(data []byte) uint64 {
 	return binary.LittleEndian.Uint64(data)
 }
 
-func uintToShortByte(n uint64) []byte {
-	hexStr := strconv.FormatUint(n, 16)
+func uint16ToBigEndianBytes(data uint16) []byte {
+	tmp := [2]byte{}
+	binary.BigEndian.PutUint16(tmp[:], data)
+	return tmp[:]
+}
 
-	//log.Info("hexStr:",hexStr)
-	if len(hexStr)%2 > 0 {
-		hexStr = "0" + hexStr
-	}
-	var bytesData []byte
-	strLen := len(hexStr)
-	for index := 0; index < strLen; index += 2 {
-		num, _ := strconv.ParseUint(hexStr[index:index+2], 16, 64)
-		bytesData = append(bytesData, byte(num))
-	}
-	bytesData = reverseBytes(bytesData)
-	bytesData = append([]byte{byte(len(bytesData))}, bytesData...)
+func bigEndianBytesToUint16(data []byte) uint16 {
+	return binary.BigEndian.Uint16(data)
+}
 
-	return bytesData
+func uint32ToBigEndianBytes(data uint32) []byte {
+	tmp := [4]byte{}
+	binary.BigEndian.PutUint32(tmp[:], data)
+	return tmp[:]
+}
+
+func bigEndianBytesToUint32(data []byte) uint32 {
+	return binary.BigEndian.Uint32(data)
+}
+
+func uint64ToBigEndianBytes(data uint64) []byte {
+	tmp := [8]byte{}
+	binary.BigEndian.PutUint64(tmp[:], data)
+	return tmp[:]
+}
+
+func bigEndianBytesToUint64(data []byte) uint64 {
+	return binary.BigEndian.Uint64(data)
+}
+
+func decimalToBytes(amount string) []byte {
+	amountDecimal, _ := decimal.NewFromString(amount)
+	mulv := amountDecimal.Mul(decimal.New(1, 8))
+	byteArray := mulv.BigInt().Bytes()
+	var decimalByte = make([]byte, 8)
+	if len(byteArray) <= 8 {
+		copy(decimalByte[(8-len(byteArray)):], byteArray)
+	}
+	return decimalByte
 }

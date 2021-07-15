@@ -89,8 +89,10 @@ func (c *Client) GetCall(path string) (*gjson.Result, error) {
 	if c.Debug {
 		log.Debug("Start Request API...")
 	}
-
-	r, err := c.client.Get(c.BaseURL + path)
+	header := req.Header{
+		"Accept": "application/json",
+	}
+	r, err := c.client.Get(c.BaseURL+path, header)
 
 	if c.Debug {
 		log.Std.Info("Request API Completed")
@@ -206,7 +208,7 @@ func isError(result *gjson.Result) error {
 
 // getLastBlockHeight 获取当前最高区块
 func (c *Client) getLastBlockHeight() (uint64, error) {
-	status, err := c.getLastStatus()
+	status, err := c.getLastBlock()
 	if err != nil {
 		return 0, err
 	}
@@ -224,29 +226,26 @@ func (c *Client) getTxMaterial() (*TxArtifacts, error) {
 }
 
 // getLastBlock 获取当前最新状态
-func (c *Client) getLastStatus() (*Status, error) {
-	resp, err := c.RpcCall("info_get_status", nil)
+func (c *Client) getLastBlock() (*Block, error) {
+	resp, err := c.GetCall("/blocks/last")
 
 	if err != nil {
 		return nil, err
 	}
 
-	return NewStatus(resp)
+	return NewBlock(resp), err
+
 }
 
 func (c *Client) getBlockByHeight(blockHeight uint64) (*Block, error) {
-	method := "chain_get_block"
-	param := make(map[string]interface{}, 0)
-	blockIdentifier := make(map[string]interface{}, 0)
-	param["block_identifier"] = blockIdentifier
-	blockIdentifier["Height"] = blockHeight
-	resp, err := c.RpcCall(method, param)
+	requestPath := fmt.Sprintf("%s/%d", "/blocks/byheight", blockHeight)
+	resp, err := c.GetCall(requestPath)
 
 	if err != nil {
 		return nil, err
 	}
 	block := NewBlock(resp)
-	txArray, err := c.getBlockTransferTxByHeight(blockHeight)
+	txArray, err := c.getBlockTransferTxByHash(block.Hash)
 	if err != nil {
 		return nil, err
 	}
@@ -257,27 +256,24 @@ func (c *Client) getBlockByHeight(blockHeight uint64) (*Block, error) {
 	return block, nil
 }
 
-func (c *Client) getBlockTransferTxByHeight(blockHeight uint64) ([]*Transaction, error) {
-	method := "chain_get_block_transfers"
-	param := make(map[string]interface{}, 0)
-	blockIdentifier := make(map[string]interface{}, 0)
-	param["block_identifier"] = blockIdentifier
-	blockIdentifier["Height"] = blockHeight
-	resp, err := c.RpcCall(method, param)
+func (c *Client) getBlockTransferTxByHash(blockHash string) ([]*Transaction, error) {
+	requestPath := fmt.Sprintf("%s/%s", "/transactions/block", blockHash)
+
+	resp, err := c.GetCall(requestPath)
 
 	if err != nil {
 		return nil, err
 	}
-	txArray := GetTransactionInBlock(resp, blockHeight)
+	txArray := GetTransactionInBlock(resp, blockHash)
 
 	//获取交易费
-	for _, tx := range txArray {
-		fee, err := c.getDeployFee(tx.TxID)
-		if err != nil {
-			return nil, err
-		}
-		tx.Fee = fee
-	}
+	//for _, tx := range txArray {
+	//	fee, err := c.getDeployFee(tx.TxID)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	tx.Fee = fee
+	//}
 	return txArray, nil
 }
 
@@ -285,42 +281,18 @@ func (c *Client) getBlockTransferTxByHeight(blockHeight uint64) ([]*Transaction,
 var UrefCache = make(map[string]string)
 
 // getBalance 获取地址余额
-func (c *Client) getBalance(address, stateRootHash string) (*AddrBalance, error) {
-	method := "state_get_balance"
+func (c *Client) getBalance(address string) (*AddrBalance, error) {
+	requestPath := fmt.Sprintf("%s/%s", "/addresses/balance", address)
 
-	if stateRootHash == "" {
-		stateRootHashGet, err := c.getStateRootHash()
-		if err != nil {
-			return nil, err
-		}
-		stateRootHash = stateRootHashGet
-
-	}
-	uref, exists := UrefCache[address]
-	//cache 不存在 从rpc获取
-
-	if !exists {
-		urefGet, err := c.getAccountUref(address, stateRootHash)
-		if err != nil {
-			return nil, err
-		}
-		uref = urefGet
-		//放入缓存
-		UrefCache[address] = uref
-	}
-
-	param := make(map[string]interface{}, 0)
-	param["purse_uref"] = uref
-	param["state_root_hash"] = stateRootHash
-	resp, err := c.RpcCall(method, param)
+	resp, err := c.GetCall(requestPath)
 	if err != nil {
 		return nil, err
 	}
-	balanceValue := resp.Get("balance_value")
+	balanceValue := resp.Get("value")
 	if !balanceValue.Exists() {
 		return nil, errors.New("rpc get error ,state_root_hash not exists")
 	}
-	return &AddrBalance{Address: address, Balance: balanceValue.Uint()}, nil
+	return &AddrBalance{Address: address, Balance: balanceValue.String()}, nil
 }
 
 //get latest state root hash
