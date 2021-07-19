@@ -763,7 +763,7 @@ func (bs *MCFBlockScanner) GetScannedBlockHeader() (*openwallet.BlockHeader, err
 		}
 
 		//就上一个区块链为当前区块
-		blockHeight = blockHeight - 1
+		blockHeight = blockHeight - 20
 		block, err := bs.wm.ApiClient.getBlockByHeight(blockHeight)
 		if err != nil {
 			bs.wm.Log.Errorf("get block spec by block number failed, err=%v", err)
