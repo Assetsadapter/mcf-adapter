@@ -22,7 +22,8 @@ import (
 	"github.com/Assetsadapter/mcf-adapter/mcftransaction"
 	"github.com/Assetsadapter/mcf-adapter/txsigner"
 	"github.com/blocktree/go-owcrypt"
-	"github.com/mr-tron/base58"
+	"github.com/btcsuite/btcutil/base58"
+	"github.com/prometheus/common/log"
 	"github.com/shopspring/decimal"
 	"math/big"
 	"sort"
@@ -46,7 +47,7 @@ func NewTransactionDecoder(wm *WalletManager) *TransactionDecoder {
 
 //CreateRawTransaction 创建交易单
 func (decoder *TransactionDecoder) CreateRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
-	return decoder.CreateCsprRawTransaction(wrapper, rawTx)
+	return decoder.CreateMcfRawTransaction(wrapper, rawTx)
 }
 
 //SignRawTransaction 签名交易单
@@ -86,25 +87,21 @@ func (decoder *TransactionDecoder) SignRawTransaction(wrapper openwallet.WalletD
 			if err != nil {
 				return err
 			}
-			deployTx := mcftransaction.Deploy{}
-			if err := json.Unmarshal(rawTxHex, &deployTx); err != nil {
+			tx := mcftransaction.PaymentTransaction{}
+			if err := json.Unmarshal(rawTxHex, &tx); err != nil {
 				return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "sign transaction hash failed, unexpected err: %v", err)
 			}
-			deployTx.Approvals.Signature = hex.EncodeToString(sig)
-			deployTx.Approvals.Signer = keySignature.Address.Address
-			deployBytes, err := json.Marshal(deployTx)
+			tx.SetSignature(sig)
 			if err != nil {
 				return err
 			}
-			rawTx.RawHex = hex.EncodeToString(deployBytes)
+			rawTx.RawHex = hex.EncodeToString(tx.ToBytes())
 			if err != nil {
 				return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "raw tx Unmarshal failed=%s", err)
 			}
 			decoder.wm.Log.Debugf("message: %s", hex.EncodeToString(msg))
 			decoder.wm.Log.Debugf("publicKey: %s", hex.EncodeToString(publicKey))
 			decoder.wm.Log.Debug("publicKey: ", publicKey)
-			decoder.wm.Log.Errorf("privateKey: %s", base58.Encode(keyBytes))
-			decoder.wm.Log.Error("privateKey: ", keyBytes)
 
 			decoder.wm.Log.Debugf("signature: %s", hex.EncodeToString(sig))
 
@@ -121,7 +118,7 @@ func (decoder *TransactionDecoder) SignRawTransaction(wrapper openwallet.WalletD
 
 //VerifyRawTransaction 验证交易单，验证交易单并返回加入签名后的交易单
 func (decoder *TransactionDecoder) VerifyRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
-	return decoder.VerifyCSPRRawTransaction(wrapper, rawTx)
+	return decoder.VerifyMcfRawTransaction(wrapper, rawTx)
 }
 
 func (decoder *TransactionDecoder) SubmitRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) (*openwallet.Transaction, error) {
@@ -133,30 +130,21 @@ func (decoder *TransactionDecoder) SubmitRawTransaction(wrapper openwallet.Walle
 		return nil, fmt.Errorf("transaction is not completed validation")
 	}
 
-	rawTxHex, err := hex.DecodeString(rawTx.RawHex)
+	rawTxBytes, err := hex.DecodeString(rawTx.RawHex)
 	if err != nil {
 		return nil, openwallet.Errorf(openwallet.ErrSubmitRawSmartContractTransactionFailed, "raw tx Unmarshal failed=%s", err)
 	}
+	rawTxBase58 := base58.Encode(rawTxBytes)
+	txId := base58.Encode(rawTxBytes[len(rawTxBytes)-64:])
 
-	deployTx := mcftransaction.Deploy{}
-	if err := json.Unmarshal(rawTxHex, &deployTx); err != nil {
-		return nil, openwallet.Errorf(openwallet.ErrSubmitRawSmartContractTransactionFailed, "submit transaction hash failed, unexpected err: %v", err)
-	}
-	deployJson, err := deployTx.ToJson()
-	//if err != nil{
-	//	return nil,openwallet.Errorf(openwallet.ErrSubmitRawSmartContractTransactionFailed, "submit transaction hash failed, unexpected err: %v", err)
-	//}
-	//jsonStr,err := json.Marshal(deployJson)
-	//if err != nil{
-	//	return nil,openwallet.Errorf(openwallet.ErrSubmitRawSmartContractTransactionFailed, "submit transaction hash failed, unexpected err: %v", err)
-	//}
-
-	txid, err := decoder.wm.SendRawTransaction(deployJson)
+	log.Info("txId: ", rawTxBase58)
+	log.Info("txBase58: ", rawTxBase58)
+	err = decoder.wm.SendRawTransaction(rawTxBase58)
 	if err != nil {
 		return nil, err
 	}
 
-	rawTx.TxID = txid
+	rawTx.TxID = txId
 	rawTx.IsSubmit = true
 
 	decimals := int32(6)
@@ -178,7 +166,7 @@ func (decoder *TransactionDecoder) SubmitRawTransaction(wrapper openwallet.Walle
 	return &tx, nil
 }
 
-func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
+func (decoder *TransactionDecoder) CreateMcfRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
 
 	addresses, err := wrapper.GetAddressList(0, -1, "AccountID", rawTx.Account.AccountID)
 
@@ -205,17 +193,18 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 		return addressesBalanceList[i].Balance > addressesBalanceList[j].Balance
 	})
 
+	feeStr := ""
 	fee := uint64(0)
 	if len(rawTx.FeeRate) > 0 {
-		feeConvert, err := decimal.NewFromString(rawTx.FeeRate)
-		fee = uint64(feeConvert.IntPart())
+		feeStr = rawTx.FeeRate
+		fee = uint64(int64(convertFromAmount(feeStr, decoder.wm.Decimal())))
 		if err != nil {
 			return err
 		}
-
 	} else {
-		fee = uint64(decoder.wm.Config.FixedFee)
+		feeStr = decoder.wm.Config.FixedFee
 	}
+	fee = uint64(int64(convertFromAmount(feeStr, decoder.wm.Decimal())))
 
 	var amountStr, to string
 	for k, v := range rawTx.To {
@@ -224,9 +213,8 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 		break
 	}
 
-	amount := uint64(int64(convertFromAmount(amountStr, decoder.wm.Decimal())))
-
 	from := ""
+	amount := uint64(int64(convertFromAmount(amountStr, decoder.wm.Decimal())))
 	for _, a := range addressesBalanceList {
 		addrBalance := uint64(int64(convertFromAmount(a.Balance, decoder.wm.Decimal())))
 		if addrBalance < (amount + fee) {
@@ -244,17 +232,20 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 	rawTx.TxTo = []string{to}
 	rawTx.TxAmount = amountStr
 	rawTx.FeeRate = convertToAmount(fee, decoder.wm.Decimal())
-
-	deploy, message, err := decoder.CreateEmptyRawTransactionAndMessage(from, to, amount, fee)
+	addrFrom, err := wrapper.GetAddress(from)
 	if err != nil {
 		return err
 	}
-	deployBytes, err := json.Marshal(deploy)
+	tx, message, err := decoder.CreateEmptyRawTransactionAndMessage(from, addrFrom.PublicKey, to, amountStr, feeStr)
+	if err != nil {
+		return err
+	}
+	txBytes, err := json.Marshal(tx)
 	if err != nil {
 		return err
 	}
 
-	rawTx.RawHex = hex.EncodeToString(deployBytes)
+	rawTx.RawHex = hex.EncodeToString(txBytes)
 
 	if rawTx.Signatures == nil {
 		rawTx.Signatures = make(map[string][]*openwallet.KeySignature)
@@ -262,13 +253,9 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 
 	keySigs := make([]*openwallet.KeySignature, 0)
 
-	addr, err := wrapper.GetAddress(from)
-	if err != nil {
-		return err
-	}
 	signature := openwallet.KeySignature{
 		EccType: decoder.wm.Config.CurveType,
-		Address: addr,
+		Address: addrFrom,
 		Message: message,
 	}
 
@@ -283,7 +270,7 @@ func (decoder *TransactionDecoder) CreateCsprRawTransaction(wrapper openwallet.W
 	return nil
 }
 
-func (decoder *TransactionDecoder) VerifyCSPRRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
+func (decoder *TransactionDecoder) VerifyMcfRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
 
 	if rawTx.Signatures == nil || len(rawTx.Signatures) == 0 {
 		return openwallet.Errorf(openwallet.ErrVerifyRawTransactionFailed, "transaction signature is empty")
@@ -316,8 +303,9 @@ func (decoder *TransactionDecoder) VerifyCSPRRawTransaction(wrapper openwallet.W
 }
 
 func (decoder *TransactionDecoder) GetRawTransactionFeeRate() (feeRate string, unit string, err error) {
-	rate := uint64(decoder.wm.Config.FixedFee)
-	return convertToAmount(rate, decoder.wm.Decimal()), "TX", nil
+	//rate := uint64(decoder.wm.Config.FixedFee)
+	//return convertToAmount(rate, decoder.wm.Decimal()), "TX", nil
+	return "0", "0", nil
 }
 
 //CreateSummaryRawTransaction 创建汇总交易，返回原始交易单数组
@@ -373,7 +361,7 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 		}
 		fee = big.NewInt(feeGet.IntPart())
 	} else {
-		fee = big.NewInt(decoder.wm.Config.FixedFee)
+		//fee = big.NewInt(decoder.wm.Config.FixedFee)
 	}
 
 	for _, addrBalance := range addrBalanceArray {
@@ -432,16 +420,16 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 		//	return nil, createErr
 		//}
 
-		deploy, message, err := decoder.CreateEmptyRawTransactionAndMessage(addrBalance.Address, sumRawTx.SummaryAddress, sumAmount_BI.Uint64(), fee.Uint64())
+		//deploy, message, err := decoder.CreateEmptyRawTransactionAndMessage(addrBalance.Address, sumRawTx.SummaryAddress, sumAmount_BI.Uint64(), fee.Uint64())
 		if err != nil {
 			return nil, openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "Serialization error ")
 		}
-		deployBytes, err := json.Marshal(deploy)
+		//deployBytes, err := json.Marshal(deploy)
 		if err != nil {
 			return nil, openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "json marshal tx error")
 		}
 
-		rawTx.RawHex = hex.EncodeToString(deployBytes)
+		//rawTx.RawHex = hex.EncodeToString(deployBytes)
 
 		if rawTx.Signatures == nil {
 			rawTx.Signatures = make(map[string][]*openwallet.KeySignature)
@@ -456,7 +444,7 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 		signature := openwallet.KeySignature{
 			EccType: decoder.wm.Config.CurveType,
 			Address: addr,
-			Message: message,
+			Message: "",
 		}
 		keySigs = append(keySigs, &signature)
 		rawTx.Signatures[rawTx.Account.AccountID] = keySigs
@@ -483,27 +471,22 @@ func (decoder *TransactionDecoder) CreateSummaryRawTransactionWithError(wrapper 
 	return raTxWithErr, nil
 }
 
-func (decoder *TransactionDecoder) CreateEmptyRawTransactionAndMessage(fromPub string, toPub string, transferAmount, payFeeAmount uint64) (*mcftransaction.Deploy, string, error) {
-	//now := time.Now() // current local time
-	//timestamp := uint64(now.Unix())
+func (decoder *TransactionDecoder) CreateEmptyRawTransactionAndMessage(fromAddr, fromPubKey, toAddr, transferAmount, payFeeAmount string) (*mcftransaction.PaymentTransaction, string, error) {
 	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
-	chainName := decoder.wm.Config.ChainName
-	ttlTime := uint64(30 * 60 * 1000)
-
-	deploy, err := mcftransaction.NewDeploy(payFeeAmount, transferAmount, uint64(timestamp), 1, ttlTime, fromPub, toPub, chainName)
+	//create public key
+	bytes, err := hex.DecodeString(fromPubKey)
 	if err != nil {
 		return nil, "", err
 	}
-	//deployJson, err := deploy.ToJson()
-	//if err != nil {
-	//	return "", "", err
-	//}
-	//
-	//deployJsonStr, err := json.Marshal(deployJson)
-	//if err != nil {
-	//	return "", "", err
-	//}
+	fromAddrPubKeyBase58 := base58.Encode(bytes)
+	//Reference 引用txid
+	lastTxId, err := decoder.wm.ApiClient.Client.getAddressLastTxHash(fromAddr)
+	log.Info("llllllastId:", lastTxId)
+	if err != nil {
+		return nil, "", err
+	}
+	payFeeAmount = "0.00001"
+	tx := mcftransaction.NewTransaction(uint64(timestamp), lastTxId, fromAddrPubKeyBase58, toAddr, transferAmount, payFeeAmount)
 
-	return deploy, hex.EncodeToString(deploy.Hash), nil
-
+	return tx, hex.EncodeToString(tx.ToBytes()), nil
 }

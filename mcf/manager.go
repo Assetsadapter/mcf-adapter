@@ -95,14 +95,14 @@ func (wm *WalletManager) GetWallets() ([]*openwallet.Wallet, error) {
 }
 
 //SendRawTransaction 广播交易
-func (wm *WalletManager) SendRawTransaction(txJson map[string]interface{}) (string, error) {
+func (wm *WalletManager) SendRawTransaction(txBase58 string) error {
 
-	txid, err := wm.ApiClient.sendTransaction(txJson)
+	err := wm.ApiClient.sendTransaction(txBase58)
 
 	if err != nil {
-		return "", err
+		return err
 	}
-	return txid, nil
+	return nil
 }
 
 // UpdateAddressNonce

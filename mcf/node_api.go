@@ -16,11 +16,8 @@
 package mcf
 
 import (
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/blocktree/go-owcrypt"
 	"github.com/blocktree/openwallet/v2/log"
 	"github.com/imroc/req"
 	"github.com/tidwall/gjson"
@@ -54,12 +51,12 @@ func NewClient(url string, debug bool) *Client {
 }
 
 // PostCall 发送 POST 请求
-func (c *Client) PostCall(path string, v map[string]interface{}) (*gjson.Result, error) {
+func (c *Client) PostCall(path string, data interface{}) (*gjson.Result, error) {
 	if c.Debug {
 		log.Debug("Start Request API...")
 	}
 
-	r, err := c.client.Post(c.BaseURL+path, req.BodyJSON(&v))
+	r, err := c.client.Post(c.BaseURL+path, data)
 
 	if c.Debug {
 		log.Std.Info("Request API Completed")
@@ -115,6 +112,33 @@ func (c *Client) GetCall(path string) (*gjson.Result, error) {
 
 	return &result, nil
 }
+
+// GetCall 发送 GET 请求
+func (c *Client) GetCall2(path string) (string, error) {
+
+	if c.Debug {
+		log.Debug("Start Request API...")
+	}
+	header := req.Header{
+		"Accept": "application/json",
+	}
+	r, err := c.client.Get(c.BaseURL+path, header)
+
+	if c.Debug {
+		log.Std.Info("Request API Completed")
+	}
+
+	if c.Debug {
+		log.Debugf("%+v\n", r)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return r.String(), nil
+}
+
 func (c *Client) RpcCall(method string, params interface{}) (*gjson.Result, error) {
 	authHeader := req.Header{
 		"Accept":       "application/json",
@@ -277,8 +301,19 @@ func (c *Client) getBlockTransferTxByHash(blockHash string) ([]*Transaction, err
 	return txArray, nil
 }
 
-// address =>>> uref 映射
-var UrefCache = make(map[string]string)
+func (c *Client) getAddressLastTxHash(address string) (string, error) {
+	requestPath := fmt.Sprintf("/addresses/lastreference/%s", address)
+
+	resp, err := c.GetCall2(requestPath)
+
+	if err != nil {
+		return "", err
+	}
+	if resp != "" {
+		return resp, nil
+	}
+	return "", errors.New("address last tx not found")
+}
 
 // getBalance 获取地址余额
 func (c *Client) getBalance(address string) (*AddrBalance, error) {
@@ -295,109 +330,15 @@ func (c *Client) getBalance(address string) (*AddrBalance, error) {
 	return &AddrBalance{Address: address, Balance: balanceValue.String()}, nil
 }
 
-//get latest state root hash
-func (c *Client) getStateRootHash() (string, error) {
-	method := "chain_get_state_root_hash"
-	var param = make(map[string]string, 0)
-
-	resp, err := c.RpcCall(method, param)
-
-	if err != nil {
-		return "", err
-	}
-	rootHash := resp.Get("state_root_hash")
-	if !rootHash.Exists() {
-		return "", errors.New("rpc get error ,state_root_hash not exists")
-	}
-
-	return rootHash.String(), nil
-}
-
-func (c *Client) getDeployFee(deployHash string) (uint64, error) {
-	method := "info_get_deploy"
-	var param = make(map[string]string, 0)
-	param["deploy_hash"] = deployHash
-	resp, err := c.RpcCall(method, param)
-
-	if err != nil {
-		return 0, err
-	}
-	payment := resp.Get("deploy.payment.ModuleBytes.args")
-	if !payment.Exists() {
-		return 0, errors.New("rpc get error ,payment not exists")
-	}
-	if len(payment.Array()) == 0 {
-		return 0, nil
-	}
-
-	paymentFee := payment.Array()[0].Array()[1].Get("parsed").Uint()
-
-	return paymentFee, nil
-}
-
-func convertPublicToAccountHashPrefix(pubKeyHex string) (string, error) {
-	if len(pubKeyHex) == 66 && strings.HasPrefix(pubKeyHex, "01") {
-		pubKeyHex = pubKeyHex[2:]
-	}
-	pubKeyBytes, err := hex.DecodeString(pubKeyHex)
-	if err != nil {
-		return "", nil
-	}
-	split, _ := hex.DecodeString("00")
-	prefix := append([]byte("ed25519"), split...)
-	pubKeyBytesAll := append(prefix, pubKeyBytes...)
-	pkHash := owcrypt.Hash(pubKeyBytesAll, 32, owcrypt.HASH_ALG_BLAKE2B)
-	return fmt.Sprintf("account-hash-%s", hex.EncodeToString(pkHash)), nil
-}
-
-//get latest state root hash
-func (c *Client) getAccountUref(accountPubKey, stateRootHash string) (string, error) {
-	if accountPubKey == "" || stateRootHash == "" {
-		return "", errors.New("getAccountUref error ,param invalid")
-	}
-	method := "state_get_item"
-	accountHash, err := convertPublicToAccountHashPrefix(accountPubKey)
-	if err != nil {
-		return "", err
-	}
-
-	var param = make(map[string]string, 0)
-	param["key"] = accountHash
-	param["state_root_hash"] = stateRootHash
-	resp, err := c.RpcCall(method, param)
-
-	if err != nil {
-		return "", err
-	}
-	mainUref := resp.Get("stored_value.Account.main_purse")
-	if !mainUref.Exists() {
-		return "", errors.New("rpc get error ,main_purse not exists")
-	}
-
-	return mainUref.String(), nil
-}
-
 // sendTransaction 发送签名交易
-func (c *Client) sendTransaction(txJson map[string]interface{}) (string, error) {
-	method := "account_put_deploy"
+func (c *Client) sendTransaction(txBase58 string) error {
 
-	param := map[string]interface{}{
-		"deploy": txJson,
-	}
-	str, _ := json.Marshal(param)
-	log.Info("deploy:", string(str))
-	resp, err := c.RpcCall(method, param)
+	_, err := c.PostCall("/transactions/process", txBase58)
 	if err != nil {
-		return "", err
+		return err
 	}
+	return nil
 
-	log.Debug("sendTransaction result : ", resp)
-
-	if resp.Get("error").String() != "" && resp.Get("cause").String() != "" {
-		return "", errors.New("Submit transaction with error: " + resp.Get("error").String() + "," + resp.Get("cause").String())
-	}
-
-	return resp.Get("deploy_hash").String(), nil
 }
 
 func RemoveOxToAddress(addr string) string {

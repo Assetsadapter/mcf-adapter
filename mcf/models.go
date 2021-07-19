@@ -65,6 +65,11 @@ func GetTransactionInBlock(txJson *gjson.Result, blockHash string) []*Transactio
 	transferArray := txJson.Array()
 	transactions := make([]*Transaction, 0)
 	for _, transfer := range transferArray {
+		txType := transfer.Get("type").String()
+		if txType != "PAYMENT" {
+			continue
+		}
+
 		transaction := Transaction{}
 		transaction.BlockHash = blockHash
 		transaction.BlockHeight = transfer.Get("blockHeight").Uint()

@@ -73,16 +73,13 @@ func (c *ApiClient) getBlockByHeight(height uint64) (*Block, error) {
 	return nil, nil
 }
 
-func (c *ApiClient) sendTransaction(txJson map[string]interface{}) (string, error) {
+func (c *ApiClient) sendTransaction(txBase58 string) error {
 	var (
-		txid string
-		err  error
+		err error
 	)
-	if c.APIChoose == "rpc" {
-		txid, err = c.Client.sendTransaction(txJson)
-	}
+	err = c.Client.sendTransaction(txBase58)
 
-	return txid, err
+	return err
 }
 
 func (c *ApiClient) getTxMaterial() (*TxArtifacts, error) {

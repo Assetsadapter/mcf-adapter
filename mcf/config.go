@@ -31,7 +31,7 @@ const (
 	Symbol    = "MCF"
 	MasterKey = "MCF seed"
 	CurveType = owcrypt.ECC_CURVE_ED25519
-	Decimal   = 9
+	Decimal   = 8
 )
 
 type WalletConfig struct {
@@ -71,7 +71,7 @@ type WalletConfig struct {
 	//曲线类型
 	CurveType uint32
 	//fixed fee in sawi
-	FixedFee int64
+	FixedFee string
 	// data directory
 	DataDir string
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/blocktree/openwallet/v2/log"
+	"github.com/btcsuite/btcutil/base58"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -94,17 +95,24 @@ func Test_getBalance(t *testing.T) {
 	}
 
 }
+func Test_getLastTx(t *testing.T) {
+
+	c := NewClient(testNodeAPIRpc, true)
+	address := "QYqmSCw73QYAvCmkZCfpCm55XDk8W18fWW"
+	r, err := c.getAddressLastTxHash(address)
+
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(r)
+	}
+
+}
 
 func Test_sendTransaction(t *testing.T) {
-	//c := NewClient(testNodeAPIRpc, true)
-	//r, err := c.sendTransaction("0x39028453538d40098561df3a2fe577c2995d7f6a5bd45f0f5708e9b9e11cc4896e1db800ba6d5" +
-	//	"4c43a5c07e6d1b89ff51d356ac686b0bcd592d00a5140c4842a054c567830aad78e0bd03c86792e794756a516507b1911f824267d51b75" +
-	//	"b3676d0a9b40295030000050009d0dbc83629dcd90f7e1cc989cd2cd713205adff4a3b0f2699e31b7e35981340700dc5c2402")
-	//if err != nil {
-	//	fmt.Println(err)
-	//} else {
-	//	fmt.Println(r)
-	//}
+	b := "111FDmMyRw9zzfbkskARoJ5bs3z4auestAi3P31YpAv7ZmrvMEu6p2hoHVRPE4PA1kJbrnrK5cPzdbckDsEjoHiSyp5nabEYPUoD68JT9xZiuTMNCTFRnrapRPcPQXtWZzmXCWdirdb17d41qf1quzHKsBVzmi8iToEfRkreLU8gsY8YTHcnioPJTMxtFvmhf4W6X2NVAinQZU3"
+	c := base58.Decode(b)
+	log.Info(c)
 }
 func Test_rpc(t *testing.T) {
 	// test (POST http://3.208.91.63:7777/rpc)
